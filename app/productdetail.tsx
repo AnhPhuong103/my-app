@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,64 +6,104 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import Header from "./header";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
+const CART_KEY = "cartItems";
 
-const ProductDetail = ({ navigation }) => {
-  const [selectedShade, setSelectedShade] = useState(null);
+const ProductDetail = () => {
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [isAddedToCart, setIsAddedToCart] = useState(false);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { productId } = route.params;
 
-  const product = {
-    id: "1",
-    name: "Son môi lì Velvet Luxe",
-    price: 350000,
-    salePrice: 280000,
-    soldCount: 500,
-    image: require("../assets/images/product20.png"),
-    description: "Son môi lì Velvet Luxe mang đến màu sắc rực rỡ và độ bám lâu trôi.",
-    shades: ["Đỏ", "Hồng", "Cam", "Nude"],
+  useEffect(() => {
+    fetchProductDetails();
+  }, [productId]);
+
+  const fetchProductDetails = async () => {
+    try {
+      const response = await fetch(`https://fakestoreapi.com/products/${productId}`);
+      const data = await response.json();
+      setProduct(data);
+      setLoading(false);
+      fetchRelatedProducts(data.category); // Fetch related products based on the category
+    } catch (err) {
+      setError("Failed to fetch product details");
+      setLoading(false);
+    }
   };
 
-  const relatedProducts = [
-    {
-      id: "2",
-      name: "Phấn phủ không dầu",
-      price: 390000,
-      image: require("../assets/images/product19.png"),
-    },
-    {
-      id: "3",
-      name: "Kem nền hoàn hảo",
-      price: 480000,
-      image: require("../assets/images/product20.png"),
-    },
-    {
-      id: "4",
-      name: "Bảng phấn mắt 12 màu",
-      price: 550000,
-      image: require("../assets/images/product21.png"),
-    },
-  ];
+  const fetchRelatedProducts = async (category) => {
+    try {
+      const response = await fetch(`https://fakestoreapi.com/products/category/${category}`);
+      const data = await response.json();
+      const related = data.filter((item) => item.id !== productId);
+      setRelatedProducts(related);
+    } catch (err) {
+      console.error("Failed to fetch related products:", err);
+    }
+  };
 
-  const renderRelatedProduct = ({ item }) => (
-    <View style={styles.relatedProductItem}>
-      <Image source={item.image} style={styles.relatedProductImage} />
-      <Text style={styles.relatedProductName}>{item.name}</Text>
-      <Text style={styles.relatedProductPrice}>
-        {item.price.toLocaleString("vi-VN")} ₫
-      </Text>
-    </View>
-  );
+  const increaseQuantity = () => setQuantity((prevQuantity) => prevQuantity + 1);
+  const decreaseQuantity = () => setQuantity((prevQuantity) => Math.max(1, prevQuantity - 1));
 
-  const increaseQuantity = () =>
-    setQuantity((prevQuantity) => prevQuantity + 1);
-  const decreaseQuantity = () =>
-    setQuantity((prevQuantity) => Math.max(1, prevQuantity - 1));
+  const handleAddToCart = async () => {
+    try {
+      const existingCart = await AsyncStorage.getItem(CART_KEY);
+      const cartItems = existingCart ? JSON.parse(existingCart) : [];
+
+      const existingItemIndex = cartItems.findIndex((item) => item.productId === product.id);
+      if (existingItemIndex > -1) {
+        cartItems[existingItemIndex].quantity += quantity;
+      } else {
+        cartItems.push({ productId: product.id, quantity });
+      }
+
+      await AsyncStorage.setItem(CART_KEY, JSON.stringify(cartItems));
+      setIsAddedToCart(true);
+      Toast.show({
+        text1: "Sản phẩm đã được thêm vào giỏ hàng!",
+        type: "success",
+        position: "bottom",
+        visibilityTime: 3000,
+      });
+    } catch (error) {
+      console.error("Error adding item to cart:", error);
+    }
+  };
+
+  const handleBuyNow = () => {
+    navigation.navigate("checkout", { product, quantity });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#02008F" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -72,62 +112,29 @@ const ProductDetail = ({ navigation }) => {
         <ScrollView style={styles.scrollView}>
           <View style={styles.imageContainer}>
             <Image
-              source={product.image}
+              source={{ uri: product.image }}
               style={styles.productImage}
               resizeMode="contain"
             />
           </View>
-          <View style={styles.infoContainer}>
-            <Text style={styles.productName}>{product.name}</Text>
-            <View style={styles.priceContainer}>
-              <View style={styles.priceWrapper}>
-                <Text
-                  style={[styles.price, product.salePrice && styles.strikethrough]}
-                >
-                  {product.price.toLocaleString("vi-VN")} ₫
-                </Text>
-                {product.salePrice && (
-                  <Text style={styles.salePrice}>
-                    {product.salePrice.toLocaleString("vi-VN")} ₫
-                  </Text>
-                )}
-              </View>
-              <Text style={styles.soldCount}>Đã bán {product.soldCount}</Text>
-            </View>
 
-            <Text style={styles.sectionTitle}>Chọn màu:</Text>
-            <View style={styles.shadeContainer}>
-              {product.shades.map((shade) => (
-                <TouchableOpacity
-                  key={shade}
-                  style={[styles.shadeButton, selectedShade === shade && styles.selectedShadeButton]}
-                  onPress={() => setSelectedShade(shade)}
-                >
-                  <Text
-                    style={[
-                      styles.shadeButtonText,
-                      selectedShade === shade && styles.selectedShadeButtonText,
-                    ]}
-                  >
-                    {shade}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Category placed directly below the image */}
+          <Text style={styles.category}>{product.category}</Text>
+
+          <View style={styles.infoContainer}>
+            <Text style={styles.productName}>{product.title}</Text>
+
+            <View style={styles.priceContainer}>
+              <Text style={styles.price}>${product.price.toFixed(2)}</Text>
             </View>
 
             <Text style={styles.sectionTitle}>Số lượng:</Text>
             <View style={styles.quantityContainer}>
-              <TouchableOpacity
-                onPress={decreaseQuantity}
-                style={styles.quantityButton}
-              >
+              <TouchableOpacity onPress={decreaseQuantity} style={styles.quantityButton}>
                 <Text style={styles.quantityButtonText}>-</Text>
               </TouchableOpacity>
               <Text style={styles.quantityText}>{quantity}</Text>
-              <TouchableOpacity
-                onPress={increaseQuantity}
-                style={styles.quantityButton}
-              >
+              <TouchableOpacity onPress={increaseQuantity} style={styles.quantityButton}>
                 <Text style={styles.quantityButtonText}>+</Text>
               </TouchableOpacity>
             </View>
@@ -135,25 +142,42 @@ const ProductDetail = ({ navigation }) => {
             <Text style={styles.sectionTitle}>Mô tả sản phẩm:</Text>
             <Text style={styles.description}>{product.description}</Text>
 
-            <Text style={styles.sectionTitle}>Sản phẩm liên quan:</Text>
-            <FlatList
-              data={relatedProducts}
-              renderItem={renderRelatedProduct}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-            />
-
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.cartButton}>
-                <Text style={styles.cartButtonText}>Thêm vào giỏ hàng</Text>
+              <TouchableOpacity style={styles.cartButton} onPress={handleAddToCart}>
+                <Text style={styles.cartButtonText}>
+                  {isAddedToCart ? "Đã thêm vào giỏ hàng" : "Thêm vào giỏ hàng"}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.buyButton}>
+              <TouchableOpacity style={styles.buyButton} onPress={handleBuyNow}>
                 <Text style={styles.buyButtonText}>Mua ngay</Text>
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.sectionTitle}>Sản phẩm liên quan:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {relatedProducts.map((relatedProduct) => (
+                <TouchableOpacity
+                  key={relatedProduct.id}
+                  style={styles.relatedProductItem}
+                  onPress={() => navigation.navigate("ProductDetail", { productId: relatedProduct.id })}
+                >
+                  <Image
+                    source={{ uri: relatedProduct.image }}
+                    style={styles.relatedProductImage}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.relatedProductName} numberOfLines={1}>
+                    {relatedProduct.title}
+                  </Text>
+                  <Text style={styles.relatedProductPrice}>
+                    ${relatedProduct.price.toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </ScrollView>
+        <Toast ref={(ref) => Toast.setRef(ref)} />
       </View>
     </SafeAreaView>
   );
@@ -162,7 +186,7 @@ const ProductDetail = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#AFDAE8', // Nền sáng xanh nhạt
+    backgroundColor: '#AFDAE8',
   },
   content: {
     flex: 1,
@@ -173,7 +197,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     height: 250,
     width: width,
-    backgroundColor: "white",
+    backgroundColor: "#FFF",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -181,17 +205,24 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     height: "100%",
   },
+  category: {
+    fontSize: 14,
+    color: "#02008F",
+    textAlign: "center",
+    marginVertical: 10,
+  },
   infoContainer: {
     padding: 15,
-    backgroundColor: '#FFFFFF', // Nền trắng cho phần thông tin
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    elevation: 5, // Đổ bóng cho phần thông tin
+    elevation: 5,
   },
   productName: {
-    fontSize: 18,
+    fontSize: 20,
     marginBottom: 10,
     fontWeight: "bold",
+    color: "#02008F",
   },
   priceContainer: {
     flexDirection: "row",
@@ -199,15 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   price: {
-    fontSize: 16,
-    color: "#888",
-  },
-  strikethrough: {
-    textDecorationLine: "line-through",
-    marginRight: 10,
-  },
-  salePrice: {
-    fontSize: 16,
+    fontSize: 18,
     color: "#FF6600",
   },
   sectionTitle: {
@@ -215,27 +238,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 6,
     fontWeight: "bold",
-    color: "#02008F", // Màu xanh đậm cho tiêu đề
-  },
-  shadeContainer: {
-    flexDirection: "row",
-    marginBottom: 10,
-  },
-  shadeButton: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 10,
-    marginRight: 10,
-    borderRadius: 5,
-  },
-  selectedShadeButton: {
-    borderColor: "#02008F", // Màu xanh đậm cho nút được chọn
-  },
-  shadeButtonText: {
-    fontSize: 14,
-  },
-  selectedShadeButtonText: {
-    color: "#02008F", // Màu chữ xanh đậm cho nút được chọn
+    color: "#02008F",
   },
   quantityContainer: {
     flexDirection: "row",
@@ -250,9 +253,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 5,
+    backgroundColor: "#FFF",
   },
   quantityButtonText: {
-    color: "black",
+    color: "#02008F",
     fontSize: 18,
   },
   quantityText: {
@@ -263,25 +267,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 24,
     marginBottom: 10,
-  },
-  relatedProductItem: {
-    marginRight: 15,
-    width: 100,
-  },
-  relatedProductImage: {
-    width: 100,
-    height: 100,
-    resizeMode: "cover",
-    borderRadius: 5,
-  },
-  relatedProductName: {
-    fontSize: 14,
-    marginTop: 5,
-    fontWeight: "bold",
-  },
-  relatedProductPrice: {
-    fontSize: 14,
-    color: "#888",
+    color: "#333",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -289,7 +275,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   cartButton: {
-    backgroundColor: "#FFCC99", // Màu cam nhạt cho nút giỏ hàng
+    backgroundColor: "#FFCC99",
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
@@ -297,20 +283,57 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   buyButton: {
-    backgroundColor: "#02008F", // Màu xanh đậm cho nút mua ngay
+    backgroundColor: "#02008F",
     padding: 15,
     borderRadius: 5,
     alignItems: "center",
-    marginLeft: 10,
     flex: 1,
   },
   cartButtonText: {
-    color: "#000",
+    color: "#02008F",
     fontWeight: "bold",
   },
   buyButtonText: {
-    color: "#FFF",
+    color: "#FFFFFF",
     fontWeight: "bold",
+  },
+  relatedProductItem: {
+    marginRight: 10,
+    width: width * 0.4,
+    borderRadius: 5,
+    overflow: "hidden",
+    backgroundColor: "#FFF",
+    elevation: 2,
+  },
+  relatedProductImage: {
+    width: "100%",
+    height: 150,
+  },
+  relatedProductName: {
+    fontSize: 14,
+    padding: 5,
+    color: "#02008F",
+  },
+  relatedProductPrice: {
+    fontSize: 14,
+    padding: 5,
+    color: "#FF6600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: '#AFDAE8',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: '#AFDAE8',
+  },
+  errorText: {
+    color: "red",
+    fontSize: 18,
   },
 });
 

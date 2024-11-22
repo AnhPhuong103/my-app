@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,93 +6,176 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
+  FlatList,
+  Modal,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons"; 
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 const Header = () => {
   const navigation = useNavigation();
-  
-  const handleCartPress = () => {
-    navigation.navigate("cart");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch("https://fakestoreapi.com/products");
+      const data = await response.json();
+      setProducts(data);
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+    }
   };
+
+  const handleSearch = () => {
+    setIsSearching(true);
+    const searchResults = products.filter(product =>
+      product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredProducts(searchResults);
+    setIsSearching(false);
+    setShowResults(true);
+  };
+
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+    if (text.length === 0) {
+      setShowResults(false);
+    }
+  };
+
+  const handleProductSelect = (product) => {
+    setShowResults(false);
+    navigation.navigate("ProductDetail", { product });
+  };
+
+  const SearchResultItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.resultItem}
+      onPress={() => handleProductSelect(item)}
+    >
+      <Image 
+        source={{ uri: item.image }}
+        style={styles.productImage}
+        resizeMode="contain"
+      />
+      <View style={styles.productInfo}>
+        <Text style={styles.resultTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.resultCategory}>{item.category}</Text>
+        <Text style={styles.resultPrice}>VND {item.price.toFixed(2)}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
-      {/* Logo */}
-      <View style={styles.logoContainer}>
-        <Image
-          source={require("../assets/images/logo.png")}
-          style={styles.logo}
-        />
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Feather name="search" size={20} color="#999" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm kiếm sản phẩm..."
-            placeholderTextColor="#999"
-          />
-        </View>
-        <TouchableOpacity style={styles.searchButton}>
-          <Text style={styles.searchButtonText}>Tìm kiếm</Text>
+      {/* Row trên cùng với các biểu tượng điều hướng */}
+      <View style={styles.navigationRow}>
+        {/* Xóa icon category */}
+        <Image source={require("../assets/images/logo.png")} style={styles.logo} />
+        <TouchableOpacity onPress={() => navigation.navigate("Wishlist")}>
+          <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-      </View>
-
-      {/* Authentication and Icons */}
-      <View style={styles.authContainer}>
-        <TouchableOpacity style={styles.authButton}>
-          <Text style={styles.authButtonText}>ĐĂNG NHẬP</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.authButton}>
-          <Text style={styles.authButtonText}>ĐĂNG KÝ</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.cartButton} onPress={handleCartPress}>
+        <TouchableOpacity onPress={() => navigation.navigate("cart")}>
           <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>1</Text>
-          </View>
         </TouchableOpacity>
       </View>
+
+      {/* Thanh tìm kiếm */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm sản phẩm..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          onSubmitEditing={handleSearch}
+          returnKeyType="search"
+        />
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={handleSearch}
+          disabled={isSearching || searchQuery.length === 0}
+        >
+          {isSearching ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Feather name="search" size={20} color="#FFFFFF" />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Kết quả tìm kiếm trong Modal */}
+      <Modal
+        visible={showResults}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowResults(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Kết quả tìm kiếm ({filteredProducts.length})</Text>
+              <TouchableOpacity onPress={() => setShowResults(false)}>
+                <Feather name="x" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            {filteredProducts.length > 0 ? (
+              <FlatList
+                data={filteredProducts}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => <SearchResultItem item={item} />}
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <View style={styles.noResultsContainer}>
+                <Feather name="search" size={50} color="#CCC" />
+                <Text style={styles.noResults}>Không tìm thấy sản phẩm phù hợp</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#AFDAE8", // Màu xanh cho nền footer
+    backgroundColor: "#02008F",
     paddingVertical: 15,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     elevation: 2,
   },
-  logoContainer: {
+  navigationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between", // Điều chỉnh lại cho đều
     alignItems: "center",
-    marginBottom: 10,
+    paddingVertical: 10,
   },
   logo: {
-    width: 100,
-    height: 40,
+    width: 120,
+    height: 50,
     resizeMode: "contain",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F0F0F0",
-    borderRadius: 25,
+    marginTop: 10,
+    backgroundColor: "#AFDAE8",
+    borderRadius: 20,
     paddingHorizontal: 15,
-    height: 40,
-  },
-  searchIcon: {
-    marginRight: 10,
+    paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
@@ -101,53 +184,68 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     backgroundColor: "#FF6B00",
-    borderRadius: 25,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    marginLeft: 10,
-  },
-  searchButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
-  authContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  authButton: {
-    backgroundColor: "#FF6B00", // Nền cam cho nút đăng nhập và đăng ký
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    marginHorizontal: 5,
-  },
-  authButtonText: {
-    color: "#FFFFFF", // Màu chữ trắng cho nút
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cartButton: {
-    backgroundColor: "#FF6B00", // Màu cam cho nút giỏ hàng
-    borderRadius: 20,
     padding: 8,
-    marginLeft: 10,
+    borderRadius: 20,
   },
-  cartBadge: {
-    position: "absolute",
-    right: -5,
-    top: -5,
-    backgroundColor: "#FF0000",
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
     borderRadius: 10,
-    width: 18,
-    height: 18,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 20,
   },
-  cartBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  noResultsContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noResults: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
+  },
+  resultItem: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  productImage: {
+    width: 60,
+    height: 60,
+    marginRight: 10,
+  },
+  productInfo: {
+    flex: 1,
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  resultCategory: {
+    fontSize: 14,
+    color: '#666',
+  },
+  resultPrice: {
+    fontSize: 16,
+    color: '#FF6B00',
   },
 });
 

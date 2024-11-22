@@ -7,7 +7,9 @@ import Cart from "./cart";
 import Checkout from "./checkout";
 import RegisterScreen from "./register";
 import LoginScreen from "./(tabs)";
-
+import Toast from "react-native-toast-message";
+import ProductItem from "./ProductItem";
+import Home from "./home";
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -44,6 +46,16 @@ export default function App() {
           component={LoginScreen}
           options={{ headerShown: false }}
         />
+
+      </Stack.Navigator>
+      <Stack.Navigator initialRouteName="ProductDetail">
+        <Stack.Screen name="ProductDetail" component={ProductDetail} />
+        <Stack.Screen name="Cart" component={Cart} />
+      </Stack.Navigator>
+      <Toast ref={(ref) => Toast.setRef(ref)} />
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={ProductItem} />
+        <Stack.Screen name="ProductDetail" component={ProductDetail} />
       </Stack.Navigator>
     </NavigationContainer>
   );

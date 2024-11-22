@@ -1,150 +1,116 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  ActivityIndicator,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialIcons"; // Importing Material Icons
-const { width } = Dimensions.get("window");
-
-interface MenuItem {
-  name: string;
-  subMenu?: MenuItem[];
-}
-
-const menuItems: MenuItem[] = [
-  {
-    name: "Tất cả sản phẩm",
-  },
-  {
-    name: "Trang điểm",
-    subMenu: [
-      { name: "Son môi" },
-      { name: "Phấn nền" },
-      { name: "Mascara" },
-      { name: "Phấn mắt" },
-    ],
-  },
-  {
-    name: "Chăm sóc da",
-    subMenu: [
-      { name: "Sữa rửa mặt" },
-      { name: "Toner" },
-      { name: "Kem dưỡng ẩm" },
-      { name: "Mặt nạ" },
-    ],
-  },
-  {
-    name: "Nước hoa",
-    subMenu: [
-      { name: "Nước hoa nữ" },
-      { name: "Nước hoa nam" },
-      { name: "Nước hoa unisex" },
-    ],
-  },
-  {
-    name: "Phụ kiện",
-    subMenu: [
-      { name: "Bông tẩy trang" },
-      { name: "Cọ trang điểm" },
-      { name: "Gương" },
-    ],
-  },
-];
+import { useNavigation } from "@react-navigation/native";
 
 const Menu = () => {
-  const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigation = useNavigation();
 
-  const toggleSubMenu = (name: string) => {
-    setActiveSubMenu(activeSubMenu === name ? null : name);
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch("https://fakestoreapi.com/products/categories");
+      const data = await response.json();
+      const transformedData = data.map((category: string) => ({
+        name: category.charAt(0).toUpperCase() + category.slice(1),
+      }));
+
+      setCategories(transformedData);
+      setLoading(false);
+    } catch (err) {
+      setError("Không thể tải danh mục.");
+      setLoading(false);
+    }
   };
+
+  const handleCategoryPress = (category: string) => {
+    navigation.navigate("ProductCategoryScreen", { category });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#02008F" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {menuItems.map((item, index) => (
-        <View key={index} style={styles.menuItem}>
-          {item.subMenu ? (
-            <>
-              <TouchableOpacity
-                onPress={() => toggleSubMenu(item.name)}
-                style={styles.menuButton}
-              >
-                <Text style={styles.menuTitle}>{item.name}</Text>
-                <Icon
-                  name={
-                    activeSubMenu === item.name ? "expand-less" : "expand-more"
-                  }
-                  size={20}
-                  color="#02008F"
-                />
-              </TouchableOpacity>
-              {activeSubMenu === item.name && (
-                <View style={styles.subMenu}>
-                  {item.subMenu.map((subItem, subIndex) => (
-                    <TouchableOpacity key={subIndex} style={styles.subMenuItem}>
-                      <Text style={styles.subMenuText}>{subItem.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          ) : (
-            <TouchableOpacity style={styles.menuButton}>
-              <Text style={styles.menuTitle}>{item.name}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ))}
+      <View style={styles.row}>
+        {categories.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() => handleCategoryPress(item.name)}
+            style={styles.categoryButton}
+          >
+            <Text style={styles.menuTitle}>{item.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     padding: 10,
-    backgroundColor: "#AFDAE8", // Light blue background for the menu
+    backgroundColor: "#AFDAE8", // Light blue background
   },
-  menuItem: {
-    marginHorizontal: 10,
-    marginBottom: 10,
-    flexBasis: "45%", // Take up half of the width for each item
-  },
-  menuButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF", // White background for each menu item
-    borderRadius: 5,
-    padding: 10,
-    elevation: 2, // Add shadow effect for elevation
+    padding: 20,
+    backgroundColor: "#AFDAE8", // Light blue background
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: "center",
+    backgroundColor: "#AFDAE8", // Light blue background
+  },
+  errorText: {
+    color: "red",
+    fontSize: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+  },
+  categoryButton: {
+    flex: 1,
+    marginHorizontal: 5,
+    backgroundColor: "#02008F", // Dark blue background for buttons
+    borderRadius: 15, // Rounded corners
+    borderWidth: 1, // Add border width
+    borderColor: "#FFFFFF", // White border color
+    paddingVertical: 10, // Adjust padding
   },
   menuTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#02008F", // Dark blue text color
-  },
-  subMenu: {
-    marginTop: 5,
-    padding: 10,
-    backgroundColor: "#f8f9fa", // Light grey background for submenu
-    borderRadius: 5,
-    elevation: 1, // Light shadow for submenu
-  },
-  subMenuItem: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    backgroundColor: "#FFFFFF", // White background for submenu items
-    marginBottom: 5,
-    elevation: 1, // Add shadow for better visibility
-  },
-  subMenuText: {
-    fontSize: 14,
-    color: "#333", // Dark grey text color for submenu items
+    color: "white", // White text color for better contrast
+    textAlign: "center",
   },
 });
 
